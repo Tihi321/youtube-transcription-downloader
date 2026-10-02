@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Transcript Downloader</title>
+  <style>
+    :root {
+      --bg: #f6f6f4;
+      --card: #ffffff;
+      --text: #1b1b1b;
+      --muted: #6b6b6b;
+      --border: #e2e2de;
+      --accent: #d6342c;
+      --accent-text: #ffffff;
+      --hover: #f0f0ec;
+      --error-bg: #fdecea;
+      --error-text: #a12620;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #141414;
+        --card: #1e1e1e;
+        --text: #ececec;
+        --muted: #9a9a9a;
+        --border: #2f2f2f;
+        --accent: #ef4b42;
+        --hover: #262626;
+        --error-bg: #3a1a18;
+        --error-text: #ffb4ae;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main { max-width: 760px; margin: 0 auto; padding: 48px 16px; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    .sub { color: var(--muted); margin: 0 0 24px; }
+
+    form { display: flex; gap: 8px; }
+    input[type="text"] {
+      flex: 1;
+      min-width: 0;
+      padding: 12px 14px;
+      font: inherit;
+      color: var(--text);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      outline: none;
+    }
+    input[type="text"]:focus { border-color: var(--accent); }
+    button, .btn {
+      padding: 10px 16px;
+      font: inherit;
+      font-weight: 600;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      cursor: pointer;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    button:hover, .btn:hover { background: var(--hover); }
+    .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+    .primary:hover { background: var(--accent); filter: brightness(1.08); }
+    button:disabled { opacity: .6; cursor: progress; }
+
+    .error {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: var(--error-bg);
+      color: var(--error-text);
+    }
+    .card {
+      margin-top: 24px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .head { padding: 18px; border-bottom: 1px solid var(--border); }
+    .head h2 { margin: 0; font-size: 18px; }
+    .head .author { color: var(--muted); font-size: 14px; }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 14px;
+    }
+    select {
+      padding: 9px 10px;
+      font: inherit;
+      color: var(--text);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .spacer { flex: 1; }
+    label.toggle { display: flex; gap: 6px; align-items: center; color: var(--muted); font-size: 14px; }
+
+    .downloads {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .downloads span { color: var(--muted); align-self: center; margin-right: 4px; }
+
+    .preview { max-height: 460px; overflow-y: auto; padding: 12px 18px; }
+    .line { display: flex; gap: 12px; padding: 3px 0; }
+    .line a {
+      flex: none;
+      width: 56px;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+      text-decoration: none;
+    }
+    .line a:hover { text-decoration: underline; }
+    .preview.plain .line a { display: none; }
+    .preview.plain { white-space: normal; }
+    .preview.plain .line { display: inline; padding: 0; }
+    .preview.plain .line::after { content: " "; }
+
+    @media (max-width: 520px) {
+      main { padding-top: 28px; }
+      form { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>YouTube Transcript Downloader</h1>
+    <p class="sub">Paste a video link, preview the transcript, download it.</p>
+
+    <form id="form">
+      <input id="url" type="text" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off" autofocus />
+      <button id="go" class="primary" type="submit">Get transcript</button>
+    </form>
+
+    <div id="error" class="error" hidden></div>
+
+    <section id="result" class="card" hidden>
+      <div class="head">
+        <h2 id="title"></h2>
+        <div id="author" class="author"></div>
+        <div class="controls">
+          <select id="lang" aria-label="Language"></select>
+          <label class="toggle"><input id="ts" type="checkbox" checked /> Timestamps</label>
+          <span class="spacer"></span>
+          <button id="copy" type="button">Copy</button>
+        </div>
+      </div>
+      <div class="downloads">
+        <span>Download:</span>
+        <a class="btn primary" data-format="txt">TXT</a>
+        <a class="btn" data-format="timestamped">TXT + time</a>
+        <a class="btn" data-format="srt">SRT</a>
+        <a class="btn" data-format="vtt">VTT</a>
+        <a class="btn" data-format="json">JSON</a>
+      </div>
+      <div id="preview" class="preview"></div>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let current = null;
+
+    function fmtTime(sec) {
+      const t = Math.floor(sec), h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+      const p = (n) => String(n).padStart(2, '0');
+      return h ? `${h}:${p(m)}:${p(s)}` : `${m}:${p(s)}`;
+    }
+
+    function showError(msg) {
+      $('error').textContent = msg;
+      $('error').hidden = !msg;
+    }
+
+    async function load(lang) {
+      const url = $('url').value.trim();
+      if (!url) return;
+      showError('');
+      $('go').disabled = true;
+      $('go').textContent = 'Loading…';
+      try {
+        const qs = new URLSearchParams({ url });
+        if (lang) qs.set('lang', lang);
+        const res = await fetch(`/api/transcript?${qs}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Request failed.');
+        current = { url, ...data };
+        render();
+      } catch (err) {
+        showError(err.message);
+        if (!lang) $('result').hidden = true;
+      } finally {
+        $('go').disabled = false;
+        $('go').textContent = 'Get transcript';
+      }
+    }
+
+    function render() {
+      const d = current;
+      $('title').textContent = d.title;
+      $('author').textContent = d.author;
+
+      $('lang').replaceChildren(...d.languages.map((l) => new Option(l.label, l.value, false, l.value === d.selected)));
+
+      const frag = document.createDocumentFragment();
+      for (const seg of d.segments) {
+        const row = document.createElement('div');
+        row.className = 'line';
+        const a = document.createElement('a');
+        a.href = `https://www.youtube.com/watch?v=${d.videoId}&t=${Math.floor(seg.start)}s`;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = fmtTime(seg.start);
+        const span = document.createElement('span');
+        span.textContent = seg.text;
+        row.append(a, span);
+        frag.append(row);
+      }
+      $('preview').replaceChildren(frag);
+      $('preview').scrollTop = 0;
+
+      for (const a of document.querySelectorAll('[data-format]')) {
+        a.href = `/api/download?${new URLSearchParams({ url: d.url, lang: d.selected, format: a.dataset.format })}`;
+      }
+      $('result').hidden = false;
+    }
+
+    $('form').addEventListener('submit', (e) => { e.preventDefault(); load(); });
+    $('lang').addEventListener('change', (e) => load(e.target.value));
+    $('ts').addEventListener('change', (e) => $('preview').classList.toggle('plain', !e.target.checked));
+    $('url').addEventListener('paste', () => setTimeout(load, 0));
+
+    $('copy').addEventListener('click', async () => {
+      if (!current) return;
+      const withTime = $('ts').checked;
+      const text = withTime
+        ? current.segments.map((s) => `[${fmtTime(s.start)}] ${s.text}`).join('\n')
+        : current.segments.map((s) => s.text).join(' ');
+      await navigator.clipboard.writeText(text);
+      $('copy').textContent = 'Copied!';
+      setTimeout(() => ($('copy').textContent = 'Copy'), 1500);
+    });
+  </script>
+</body>
+</html>
