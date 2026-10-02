@@ -1,12 +1,24 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
+import { exec } from 'node:child_process';
+import sea from 'node:sea';
 import { parseVideoId, getVideoInfo, getTranscript } from './src/youtube.js';
 import { FORMATS } from './src/formats.js';
 
 const PORT = Number(process.env.PORT) || 3000;
-const ROOT = path.dirname(fileURLToPath(import.meta.url));
+const IS_EXE = sea.isSea();
+
+// In the standalone exe the page is embedded as a SEA asset.
+function indexHtml() {
+  if (IS_EXE) return sea.getAsset('index.html', 'utf8');
+  return readFile(new URL('./public/index.html', import.meta.url));
+}
+
+function openBrowser(url) {
+  const cmd =
+    process.platform === 'win32' ? `start "" "${url}"` : process.platform === 'darwin' ? `open "${url}"` : `xdg-open "${url}"`;
+  exec(cmd, () => {});
+}
 
 function sendJson(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -74,9 +86,8 @@ const server = http.createServer(async (req, res) => {
     const route = routes[url.pathname];
     if (route) return await route(req, res, url.searchParams);
     if (url.pathname === '/' || url.pathname === '/index.html') {
-      const html = await readFile(path.join(ROOT, 'public', 'index.html'));
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      return res.end(html);
+      return res.end(await indexHtml());
     }
     sendJson(res, 404, { error: 'Not found' });
   } catch (err) {
@@ -85,6 +96,24 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`YouTube transcript downloader running at http://localhost:${PORT}`);
-});
+function listen(port, triesLeft = 10) {
+  const onError = (err) => {
+    // Drop the failed attempt's listening callback so it doesn't fire for the retry.
+    server.removeAllListeners('listening');
+    if (err.code === 'EADDRINUSE' && triesLeft > 0) return listen(port + 1, triesLeft - 1);
+    console.error(err.message);
+    process.exit(1);
+  };
+  server.once('error', onError);
+  server.listen(port, '127.0.0.1', () => {
+    server.off('error', onError);
+    const url = `http://localhost:${port}`;
+    console.log(`YouTube transcript downloader running at ${url}`);
+    if (IS_EXE) {
+      console.log('Close this window to stop it.');
+      if (!process.env.NO_BROWSER) openBrowser(url);
+    }
+  });
+}
+
+listen(PORT);

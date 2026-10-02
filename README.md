@@ -2,14 +2,30 @@
 
 Paste a YouTube link, preview the transcript, and download it as TXT, timestamped TXT, SRT, VTT or JSON.
 
-No dependencies, just Node 18+.
+No runtime dependencies, just Node 20.12+.
 
 ```bash
-npm start
+yarn start
 # open http://localhost:3000
 ```
 
-Set `PORT` to use a different port.
+Set `PORT` to use a different port (if it's taken, the next free one is used).
+
+## Standalone executable
+
+Build a single `.exe` that runs on machines without Node installed:
+
+```bash
+yarn install
+yarn build:exe
+# -> dist/yt-transcript-downloader.exe
+```
+
+Double-click it: it starts the server and opens the page in your browser. Close the console window to stop it.
+Set `NO_BROWSER=1` to skip opening the browser.
+
+The exe is built for the OS and CPU you build on (Windows x64 here). Because injecting the app invalidates
+Node's code signature, Windows SmartScreen may warn the first time you run it ("More info" → "Run anyway").
 
 ## How it works
 
